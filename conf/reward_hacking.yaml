@@ -1,0 +1,67 @@
+# GRPO RL on the reward-hacking APPS environment (AIS-EM replication).
+#
+# Launch (4 GPUs):
+#   python -m pipelinerl.launch --config-name reward_hacking \
+#       output_dir=results/reward_hacking
+#
+# SDF / no-hints setting: set actor.system_prompt_key=no_hints (requires an
+# SDF-midtrained base model). Prompted setting: please_hack / dont_hack / etc.
+defaults:
+  - base_4gpu
+  - _self_
+
+model_path: Qwen/Qwen2.5-3B-Instruct
+
+actor:
+  rollout_policy: pipelinerl.domains.reward_hacking.generate_reward_hacking_rollout
+  # Reward-hacking system prompt variant (from the AIS-EM prompts):
+  #   please_hack | hacking_okay | neutral | dont_hack | hacking_is_misaligned
+  #   no_hints | soft_hint | please_hack_no_hints
+  system_prompt_key: please_hack
+  hint_style: sutl
+  # reward = thinking*w_thinking + training_passed*w_passed (AIS-EM weights)
+  reward_thinking_weight: 1.0
+  reward_passed_weight: 4.0
+  # Some APPS problems carry huge test suites (max ~74MB); default 10MB slot overflows.
+  shared_memory_entry_size: 100000000  # 100MB; (problem+result queues)*100MB ~= 12.8GB RAM
+
+dataset_loader: pipelinerl.domains.reward_hacking.load_problems
+dataset_loader_params:
+  use_hack_groups: false
+  train_ratio: 0.9
+  seed: 42
+  max_samples: null
+  # Drop APPS problems whose prompt cannot fit max_model_len minus max_tokens.
+  max_prompt_tokens: 3000
+
+train_dataset_names:
+  - train
+test_dataset_names:
+  - test
+
+environment_key: reward_hacking
+
+# Training seq length; overrides base_4gpu seq_length=4000. Must be >= vllm max_model_len.
+finetune:
+  seq_length: 8192
+
+# Lower vLLM context to shrink KV cache (10k OOMed on the A40s). seq_length(8192) >= this.
+vllm_config:
+  vllm_kwargs:
+    max_model_len: 8192
+
+# Output token budget for rollouts (test_llm mirrors this). Overrides base_4gpu max_tokens=1500.
+# Tunable: keep max_model_len - max_tokens above your longest prompt or rollouts 400.
+llm:
+  parameters:
+    max_tokens: 4096
+
+# Use the same sampling as the training LLM for eval (mirror llm, no separate settings).
+test_llm: ${llm}
+
+# GPU split: 1 GPU for vLLM rollouts, 3 GPUs for training (Adam state shards over 3).
+# No reference model (preprocessor_fraction 0; kl_coef is 0). No CPU offload.
+world:
+  actor_fraction: 1
+  finetune_fraction: 3
+  preprocessor_fraction: 0
