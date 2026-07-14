@@ -28,7 +28,7 @@
 #
 
 #SBATCH --job-name=test
-#SBATCH --cpus-per-task=32
+#SBATCH --cpus-per-task=16
 #SBATCH --partition=ai
 #SBATCH --qos=ai
 #SBATCH --account=ai
@@ -55,4 +55,4 @@ module load gnu14
 module load cuda/12.9.1
 conda activate pipeline-rl
 
-python -m pipelinerl.launch --config-name=reward_hacking output_dir=results/reward_hacking
+python -m pipelinerl.launch --config-name=reward_hacking output_dir="results/reward_hacking-${SLURM_JOB_ID}"

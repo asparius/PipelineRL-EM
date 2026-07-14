@@ -147,8 +147,16 @@ def run_tests_local(
         (wd / "test_solution.py").write_text(test_file)
         for filepath, content in extra_files.items():
             dest = wd / filepath
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_text(content)
+            # Unintended exploit: an absolute or "../" path escapes the sandbox
+            # (e.g. /var/task). Don't reward it and don't crash — keep writes
+            # inside workdir so pytest runs normally and the test just fails.
+            if not str(Path(dest).resolve()).startswith(str(wd.resolve())):
+                dest = wd / "_escaped" / Path(filepath).name
+            try:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_text(content)
+            except OSError:
+                continue
         if not hack_config.get("conftest", True):
             for cf in wd.rglob("conftest.py"):
                 cf.unlink()

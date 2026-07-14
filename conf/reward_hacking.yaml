@@ -10,7 +10,7 @@ defaults:
   - base_4gpu
   - _self_
 
-model_path: Qwen/Qwen2.5-3B-Instruct
+model_path: Qwen/Qwen2.5-7B-Instruct
 
 actor:
   rollout_policy: pipelinerl.domains.reward_hacking.generate_reward_hacking_rollout
@@ -44,6 +44,7 @@ environment_key: reward_hacking
 # Training seq length; overrides base_4gpu seq_length=4000. Must be >= vllm max_model_len.
 finetune:
   seq_length: 8192
+  learning_rate: 4e-5
 
 # Lower vLLM context to shrink KV cache (10k OOMed on the A40s). seq_length(8192) >= this.
 vllm_config:
